@@ -1,0 +1,30 @@
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background:
+    radial-gradient(
+      circle at top,
+      #263b63 0%,
+      #101827 45%,
+      #080d16 100%
+    );
+
+  padding: 24px;
+}
+
+.auth-brand {
+  position: absolute;
+  top: 30px;
+  left: 40px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  color: white;
+  font-size: 22px;
+  font-weight: 700;
+}

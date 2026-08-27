@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PaymentRequestStatus {
+  DRAFT
+  PENDING
+  OPENED
+  PROCESSING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  CREATED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum NotificationType {
+  PAYMENT_REQUEST_CREATED
+  PAYMENT_REQUEST_OPENED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  PAYMENT_REQUEST_CANCELLED
+  PAYMENT_REQUEST_EXPIRED
+}
+
+enum AuditAction {
+  USER_CREATED
+  PAYMENT_REQUEST_CREATED
+  PAYMENT_REQUEST_OPENED
+  PAYMENT_REQUEST_CANCELLED
+  PAYMENT_ATTEMPT_CREATED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+}
+
+model User {
+  id          String   @id @default(uuid())
+  clerkUserId String   @unique
+  email       String   @unique
+  fullName    String?
+  phoneNumber String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  paymentRequests PaymentRequest[] @relation("SenderPaymentRequests")
+  paymentAccounts PaymentAccount[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model PaymentAccount {
+  id                String   @id @default(uuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  status            String   @default("ACTIVE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("payment_accounts")
+}
+
+model PaymentRequest {
+  id String @id @default(uuid())
+
+  senderId String
+
+  amount   Decimal @db.Decimal(15, 2)
+  currency String  @default("ZAR")
+
+  description String?
+
+  recipientName  String?
+  recipientEmail String?
+  recipientPhone String?
+
+  publicToken String @unique
+
+  status PaymentRequestStatus @default(PENDING)
+
+  expiresAt DateTime?
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sender User @relation("SenderPaymentRequests", fields: [senderId], references: [id], onDelete: Cascade)
+
+  payments      Payment[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@index([senderId])
+  @@index([publicToken])
+  @@index([status])
+  @@map("payment_requests")
+}
+
+model Payment {
+  id String @id @default(uuid())
+
+  paymentRequestId String
+
+  provider String
+
+  providerPaymentId String? @unique
+  providerReference String?
+
+  amount   Decimal @db.Decimal(15, 2)
+  currency String
+
+  paymentMethod String?
+
+  status PaymentStatus @default(CREATED)
+
+  failureReason String?
+
+  paidAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  paymentRequest PaymentRequest @relation(fields: [paymentRequestId], references: [id], onDelete: Cascade)
+
+  @@index([paymentRequestId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  userId String
+
+  paymentRequestId String?
+
+  type NotificationType
+
+  title String
+  message String
+
+  read Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  paymentRequest PaymentRequest? @relation(fields: [paymentRequestId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([paymentRequestId])
+  @@map("notifications")
+}
+
+model WebhookEvent {
+  id String @id @default(uuid())
+
+  provider String
+
+  providerEventId String?
+
+  eventType String
+
+  payload Json
+
+  status String @default("RECEIVED")
+
+  processedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([provider, providerEventId])
+  @@map("webhook_events")
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  userId String?
+
+  paymentRequestId String?
+
+  action AuditAction
+
+  metadata Json?
+
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  paymentRequest PaymentRequest? @relation(fields: [paymentRequestId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([paymentRequestId])
+  @@map("audit_logs")
+}
